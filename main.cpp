@@ -21,8 +21,8 @@ void loop() {
     Serial.println("Fehler beim Lesen vom DHT11!");
   }
 
-  delay(10000); // nur alle 2 Sekunden messen
-
+  delay(2000); // nur alle 2 Sekunden messen
 }
+
 
 
