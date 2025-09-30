@@ -1,6 +1,6 @@
 #include <DHT.h>
 
-#define DHTPIN 25       // GPIO25
+#define DHTPIN 25       // IO25
 #define DHTTYPE DHT11   // Sensor-Typ
 
 DHT dht(DHTPIN, DHTTYPE);
@@ -18,11 +18,10 @@ void loop() {
     Serial.print(temp);
     Serial.println(" °C");
   } else {
-    Serial.println("Fehler beim Lesen vom DHT11!");
+    Serial.println("Fehler");
   }
 
-  delay(2000); // nur alle 2 Sekunden messen
-}
+  delay(2000); // 2 Sekunden
 
 
 
