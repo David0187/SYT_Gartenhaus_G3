@@ -1,3 +1,6 @@
+
+;V2
+
 #include <DHT.h>
 
 #define DHTPIN 25       // IO25
@@ -33,6 +36,7 @@ void loop() {
   delay(2000); // 2 Sekunden
 
 }
+
 
 
 
