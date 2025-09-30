@@ -15,25 +15,25 @@ void loop() {
   float temp = dht.readTemperature();
 
   if (!isnan(temp)) {
-    Serial.print("Temperatur: ");
+    Serial.print("Es hat: ");
     Serial.print(temp);
     Serial.println(" °C");
   } else {
     Serial.println("Fehler");
   }
 
-  delay(2000); // 2 Sekunden
-
-
-  int sensorValue = analogRead(MOISTURE_PIN); // der sensor muss noch besser eingestellt werden
+ int sensorValue = analogRead(MOISTURE_PIN); // der sensor muss noch besser eingestellt werden
   float moisturePercent = sensorValue / 4095.0 * 100; // in %
 
-  Serial.print("Feuchtigkeit: ");
+  Serial.print("Die Erdfeuchtigkeit beträgt: ");
   Serial.print(moisturePercent);
   Serial.println(" %");
 
-  delay(1000);
+
+  delay(2000); // 2 Sekunden
+
 }
+
 
 
 
