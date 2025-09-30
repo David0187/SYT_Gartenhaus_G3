@@ -22,4 +22,7 @@ void loop() {
   }
 
   delay(10000); // nur alle 2 Sekunden messen
+
 }
+
+asdkasndjnsadasdasijdbahsdbhasdbhasd
