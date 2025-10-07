@@ -1,5 +1,11 @@
 
-;V2
+V3;
+
+
+
+
+
+
 
 #include <DHT.h>
 
@@ -25,7 +31,7 @@ void loop() {
     Serial.println("Fehler");
   }
 
- int sensorValue = analogRead(MOISTURE_PIN); // der sensor muss noch besser eingestellt werden
+ int sensorValue = analogRead(MOISTURE_PIN);
   float moisturePercent = sensorValue / 4095.0 * 100; // in %
 
   Serial.print("Die Erdfeuchtigkeit beträgt: ");
@@ -36,6 +42,7 @@ void loop() {
   delay(2000); // 2 Sekunden
 
 }
+
 
 
 
