@@ -1,4 +1,37 @@
 
+VMQTT: MQTT Code Test
+
+#include <Arduino.h>
+#include <DHT.h>
+
+// ===== Sensor-Pins =====
+#define DHTPIN 27
+#define DHTTYPE DHT11
+#define MOISTURE_PIN 34
+
+DHT dht(DHTPIN, DHTTYPE);
+
+void setup() {
+  Serial.begin(115200);
+  dht.begin();
+  Serial.println("ESP32 gestartet. Sensorwerte werden über Serial gesendet.");
+}
+
+void loop() {
+  // Sensorwerte lesen
+  float temp = dht.readTemperature();
+  float hum = dht.readHumidity();
+  int soil = analogRead(MOISTURE_PIN);
+
+  // Nur senden, wenn gültige Werte
+  if (!isnan(temp) && !isnan(hum)) {
+    // Ausgabe als CSV: Temp,Hum,Soil
+    Serial.printf("%.1f,%.1f,%d\n", temp, hum, soil);
+  }
+
+  delay(2000); // alle 2 Sekunden
+}
+
 
 
 V5, immer wieder erscheinende Aktualisierung
@@ -234,5 +267,6 @@ void loop() {
 
   delay(2000);
 }
+
 
 
