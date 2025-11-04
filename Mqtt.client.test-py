@@ -47,3 +47,4 @@ update_values()
 
 # Tkinter Event-Loop starten
 root.mainloop()
+
