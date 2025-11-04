@@ -1,35 +1,177 @@
 
-VMQTT: MQTT Code Test
+VMQTT: MQTT Code FINAL
 
-#include <Arduino.h>
+#include <WiFi.h>
+#include <PubSubClient.h>
+#include <ArduinoJson.h>
+
+// ====================================================================
+// ===== 1. ZUGANGSDATEN ANPASSEN (Muss angepasst werden!) =====
+// ====================================================================
+
+// WLAN
+const char* ssid = "NVS-Europa";
+const char* password = "nvsrocks";
+
+// MQTT Broker (Dein Raspberry Pi)
+const char* mqtt_server = "172.16.93.132"; // IP-Adresse des Mosquitto Brokers
+const char* mqtt_user = "mqttuser";      // MQTT-Benutzername
+const char* mqtt_password = "mqtt_"; // MQTT-Passwort
+const char* mqtt_topic_out = "pflanzenbox/daten"; // Topic zum Senden
+
+// ====================================================================
+// ===== 2. HARDWARE & OBJEKTE (Dein vorhandener Code + MQTT) =====
+// ====================================================================
+
 #include <DHT.h>
 
-// ===== Sensor-Pins =====
-#define DHTPIN 27
+// Pins definieren
+#define DHTPIN 27            // DHT11 Signal
 #define DHTTYPE DHT11
-#define MOISTURE_PIN 34
+#define MOISTURE_PIN 34      // Bodenfeuchte (analog)
+#define WATER_SENSOR_PIN 13  // 2-Kabel Wasserstand (digital)
+//#define PUMP_PIN 26        // Pumpe noch nicht angeschlossen
 
+// DHT Objekt
 DHT dht(DHTPIN, DHTTYPE);
+
+// MQTT-Objekte
+WiFiClient espClient;
+PubSubClient client(espClient);
+long lastMsg = 0; // Zeitstempel für das Sendeintervall
+
+// Globale Funktionsdeklarationen
+void setup_wifi();
+void reconnect();
+
+// ====================================================================
+// ===== 3. SETUP Funktion =====
+// ====================================================================
 
 void setup() {
   Serial.begin(115200);
   dht.begin();
-  Serial.println("ESP32 gestartet. Sensorwerte werden über Serial gesendet.");
+  pinMode(WATER_SENSOR_PIN, INPUT_PULLUP);
+  
+  // --- WLAN-Verbindung aufbauen ---
+  setup_wifi();
+
+  // --- MQTT-Konfiguration ---
+  client.setServer(mqtt_server, 1883); // Port 1883
 }
 
-void loop() {
-  // Sensorwerte lesen
-  float temp = dht.readTemperature();
-  float hum = dht.readHumidity();
-  int soil = analogRead(MOISTURE_PIN);
+// ====================================================================
+// ===== 4. LOOP Funktion (Hauptlogik) =====
+// ====================================================================
 
-  // Nur senden, wenn gültige Werte
-  if (!isnan(temp) && !isnan(hum)) {
-    // Ausgabe als CSV: Temp,Hum,Soil
-    Serial.printf("%.1f,%.1f,%d\n", temp, hum, soil);
+void loop() {
+  // WLAN-Verbindung prüfen und bei Bedarf wiederherstellen
+  if (WiFi.status() != WL_CONNECTED) {
+    setup_wifi();
+  }
+  
+  // MQTT-Verbindung prüfen und bei Bedarf wiederherstellen
+  if (!client.connected()) {
+    reconnect();
+  }
+  client.loop(); // Muss regelmäßig aufgerufen werden, um MQTT-Verbindung zu erhalten
+
+  // --- Sende-Logik (Senden nur alle 30 Sekunden) ---
+  long now = millis();
+  if (now - lastMsg > 5000) { 
+    lastMsg = now;
+
+    // ------------------------------------
+    // 1. Sensordaten auslesen
+    // ------------------------------------
+    float temp = dht.readTemperature();
+    float hum = dht.readHumidity();
+    int soilValue = analogRead(MOISTURE_PIN);
+    float soilPercent = soilValue / 4095.0 * 100.0;
+    int waterState = digitalRead(WATER_SENSOR_PIN);
+    
+    // Fehlerbehandlung
+    if (isnan(temp) || isnan(hum)) {
+      Serial.println("Fehler beim Lesen vom DHT11. Sende keine Daten.");
+      return; 
+    }
+
+    // ------------------------------------
+    // 2. JSON-Payload erstellen
+    // ------------------------------------
+    // Reserviere Speicherplatz (200 ist ausreichend für 4 Werte)
+    StaticJsonDocument<200> doc;
+    
+    // Daten in das JSON-Dokument füllen
+    doc["temperature"] = temp;
+    doc["humidity"] = hum;
+    doc["soil_percent"] = soilPercent;
+    doc["water_ok"] = (waterState == HIGH); // true/false senden
+    
+    // JSON serialisieren und senden
+    char jsonBuffer[200];
+    serializeJson(doc, jsonBuffer);
+    
+    // --- MQTT Senden ---
+    if (client.publish(mqtt_topic_out, jsonBuffer)) {
+      Serial.print("MQTT gesendet an Topic '");
+      Serial.print(mqtt_topic_out);
+      Serial.print("': ");
+      Serial.println(jsonBuffer);
+    } else {
+      Serial.println("Fehler beim Senden der MQTT-Nachricht!");
+    }
   }
 
-  delay(2000); // alle 2 Sekunden
+  // --- Pumpensteuerung (Dein ursprünglicher Block) ---
+  // HIER solltest du deine Pumpen-Logik einfügen, wenn die Zeit des
+  // Pumpens den MQTT-Loop nicht zu lange blockiert (max. 1-2 Sekunden).
+  // ...
+  
+  delay(100); 
+}
+
+// ====================================================================
+// ===== 5. HILFSFUNKTIONEN =====
+// ====================================================================
+
+void setup_wifi() {
+  delay(10);
+  Serial.print("Verbinde mit ");
+  Serial.println(ssid);
+
+  WiFi.begin(ssid, password);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+
+  Serial.println();
+  Serial.println("WiFi verbunden!");
+  Serial.print("IP-Adresse ESP32: ");
+  Serial.println(WiFi.localIP());
+}
+
+void reconnect() {
+  // Versuche, erneut zu verbinden
+  while (!client.connected()) {
+    Serial.print("Versuche MQTT-Verbindung...");
+    
+    // Erstelle eine eindeutige Client-ID
+    String clientId = "ESP32-Pflanzenbox-";
+    clientId += String(random(0xffff), HEX);
+    
+    // Versuche zu verbinden (mit Benutzername und Passwort)
+    if (client.connect(clientId.c_str(), mqtt_user, mqtt_password)) {
+      Serial.println("verbunden!");
+    } else {
+      Serial.print("fehlgeschlagen, rc=");
+      Serial.print(client.state());
+      Serial.println(" versuche in 5 Sekunden erneut");
+      delay(5000); // 5 Sekunden warten, bevor es erneut versucht wird
+    }
+  }
 }
 
 
@@ -267,6 +409,7 @@ void loop() {
 
   delay(2000);
 }
+
 
 
 
