@@ -17,7 +17,7 @@ const char* password = "nvsrocks";
 const char* mqtt_server = "172.16.93.132"; // IP-Adresse des Mosquitto Brokers
 const char* mqtt_user = "mqttuser";      // MQTT-Benutzername
 const char* mqtt_password = "mqtt_"; // MQTT-Passwort
-const char* mqtt_topic_out = "pflanzenbox/daten"; // Topic zum Senden
+const char* mqtt_topic_out = "Gruppe3/daten"; // Topic zum Senden
 
 // ====================================================================
 // ===== 2. HARDWARE & OBJEKTE (Dein vorhandener Code + MQTT) =====
@@ -103,10 +103,10 @@ void loop() {
     StaticJsonDocument<200> doc;
     
     // Daten in das JSON-Dokument füllen
-    doc["temperature"] = temp;
-    doc["humidity"] = hum;
-    doc["soil_percent"] = soilPercent;
-    doc["water_ok"] = (waterState == HIGH); // true/false senden
+    doc["Temperatur"] = temp;
+    doc["Luftfeuchtigkeit"] = hum;
+    doc["Bodenfeuchtigkeit"] = soilPercent;
+    doc["Wasserstand"] = (waterState == HIGH); // true/false senden
     
     // JSON serialisieren und senden
     char jsonBuffer[200];
@@ -409,6 +409,7 @@ void loop() {
 
   delay(2000);
 }
+
 
 
 
