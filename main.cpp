@@ -1,4 +1,170 @@
 
+V10, Pumpe geht manuell an und aus schalten
+ 
+#include <WiFi.h>
+#include <PubSubClient.h>
+#include <ArduinoJson.h>
+#include <DHT.h>
+
+// ====================================================================
+// ===== 1. ZUGANGSDATEN ANPASSEN =====
+// ====================================================================
+
+// WLAN
+const char* ssid = "NVS-Europa";
+const char* password = "nvsrocks";
+
+// MQTT Broker
+const char* mqtt_server = "172.16.93.132";
+const char* mqtt_user = "mqttuser";
+const char* mqtt_password = "mqtt_";
+const char* mqtt_topic_out = "Gruppe3/daten";
+
+// ====================================================================
+// ===== 2. HARDWARE =====
+// ====================================================================
+
+// Pins definieren
+#define DHTPIN 27
+#define DHTTYPE DHT11
+#define MOISTURE_PIN 34
+#define WATER_SENSOR_PIN 13
+#define RELAY_PIN 23     // NEU: Relais-Pin
+
+// DHT Objekt
+DHT dht(DHTPIN, DHTTYPE);
+
+// MQTT-Objekte
+WiFiClient espClient;
+PubSubClient client(espClient);
+long lastMsg = 0;
+
+// Funktionsdeklarationen
+void setup_wifi();
+void reconnect();
+
+// ====================================================================
+// ===== 3. SETUP =====
+// ====================================================================
+
+void setup() {
+  Serial.begin(115200);
+  dht.begin();
+  pinMode(WATER_SENSOR_PIN, INPUT_PULLUP);
+
+  pinMode(RELAY_PIN, OUTPUT);
+  digitalWrite(RELAY_PIN, LOW);   // Relais aus beim Start
+
+  setup_wifi();
+  client.setServer(mqtt_server, 1883);
+}
+
+// ====================================================================
+// ===== 4. LOOP =====
+// ====================================================================
+
+void loop() {
+
+  // WLAN sicherstellen
+  if (WiFi.status() != WL_CONNECTED) {
+    setup_wifi();
+  }
+
+  // MQTT sicherstellen
+  if (!client.connected()) {
+    reconnect();
+  }
+  client.loop();
+
+  long now = millis();
+  if (now - lastMsg > 5000) {
+    lastMsg = now;
+
+    // Sensordaten
+    float temp = dht.readTemperature();
+    float hum = dht.readHumidity();
+    int soilValue = analogRead(MOISTURE_PIN);
+    float soilPercent = soilValue / 4095.0 * 100.0;
+    int waterState = digitalRead(WATER_SENSOR_PIN);
+
+    if (isnan(temp) || isnan(hum)) {
+      Serial.println("Fehler beim Lesen vom DHT11. Sende keine Daten.");
+      return;
+    }
+
+    // JSON-Payload
+    StaticJsonDocument<200> doc;
+    doc["Temperatur"] = temp;
+    doc["Luftfeuchtigkeit"] = hum;
+    doc["Bodenfeuchtigkeit"] = soilPercent;
+    doc["Wasserstand"] = (waterState == HIGH);
+
+    char jsonBuffer[200];
+    serializeJson(doc, jsonBuffer);
+
+    if (client.publish(mqtt_topic_out, jsonBuffer)) {
+      Serial.print("MQTT gesendet: ");
+      Serial.println(jsonBuffer);
+    } else {
+      Serial.println("Fehler beim Senden der MQTT-Nachricht!");
+    }
+
+    // ---------------------------------------
+    // Pumpensteuerung
+    // ---------------------------------------
+    if (soilPercent < 30.0) {
+      Serial.println("Bodenfeuchte niedrig -> Pumpe EIN");
+      digitalWrite(RELAY_PIN, HIGH);   // Relais EIN
+      delay(1000);                     // 1 s pumpen
+      digitalWrite(RELAY_PIN, LOW);    // Relais AUS
+      Serial.println("Pumpe AUS");
+    }
+  }
+
+  delay(100);
+}
+
+// ====================================================================
+// ===== 5. HILFSFUNKTIONEN =====
+// ====================================================================
+
+void setup_wifi() {
+  delay(10);
+  Serial.print("Verbinde mit ");
+  Serial.println(ssid);
+
+  WiFi.begin(ssid, password);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+
+  Serial.println();
+  Serial.println("WiFi verbunden!");
+  Serial.print("IP-Adresse ESP32: ");
+  Serial.println(WiFi.localIP());
+}
+
+void reconnect() {
+  while (!client.connected()) {
+    Serial.print("Versuche MQTT-Verbindung...");
+
+    String clientId = "ESP32-Pflanzenbox-";
+    clientId += String(random(0xffff), HEX);
+
+    if (client.connect(clientId.c_str(), mqtt_user, mqtt_password)) {
+      Serial.println("verbunden!");
+    } else {
+      Serial.print("fehlgeschlagen, rc=");
+      Serial.print(client.state());
+      Serial.println(" -> Neuer Versuch in 5 Sekunden");
+      delay(5000);
+    }
+  }
+}
+
+
 VMQTT: MQTT Code FINAL
 
 #include <WiFi.h>
@@ -409,6 +575,7 @@ void loop() {
 
   delay(2000);
 }
+
 
 
 
