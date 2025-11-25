@@ -1,4 +1,190 @@
 
+TAG DER OFFENEN TÜR CODE, BITTE DAS IN DIE MAIN EINFÜGEN UND DIE PLATFORM IO AUCH IN DIE PLATFORM IO DATEI REIN FÜGEN.
+
+#include <WiFi.h>
+#include <PubSubClient.h>
+#include <ArduinoJson.h>
+#include <DHT.h>
+
+// --------------------------------------------------------------------
+// WLAN
+// --------------------------------------------------------------------
+const char* ssid = "NVS-Europa";
+const char* password = "nvsrocks";
+
+// MQTT
+const char* mqtt_server = "172.16.93.132";
+const char* mqtt_user = "mqttuser";
+const char* mqtt_password = "mqtt_";
+const char* mqtt_topic_out = "Gruppe3/daten";   // Sensorwerte
+const char* mqtt_topic_pump = "Gruppe3/pumpe";  // Pumpensteuerung
+
+// --------------------------------------------------------------------
+// Sensorpinbelegung
+// --------------------------------------------------------------------
+#define DHTPIN 27
+#define DHTTYPE DHT11
+#define MOISTURE_PIN 34
+#define RELAY_PIN 23
+
+DHT dht(DHTPIN, DHTTYPE);
+
+// --------------------------------------------------------------------
+WiFiClient espClient;
+PubSubClient client(espClient);
+
+long lastMsg = 0;
+
+// Zustand für manuelle Steuerung
+bool manualPumpOverride = false;   // true = manuelle Kontrolle aktiv
+bool manualPumpState = false;      // EIN/AUS
+
+// --------------------------------------------------------------------
+// Callback: MQTT-Nachrichten empfangen
+// --------------------------------------------------------------------
+void callback(char* topic, byte* payload, unsigned int length) {
+    String msg;
+    for (unsigned int i = 0; i < length; i++) {
+        msg += (char)payload[i];
+    }
+    msg.trim();
+
+    if (String(topic) == mqtt_topic_pump) {
+        if (msg == "AN") {
+            manualPumpOverride = true;
+            manualPumpState = true;
+            digitalWrite(RELAY_PIN, LOW);   // LOW = Pumpe EIN
+            Serial.println("Manuell → Pumpe AN");
+        } else if (msg == "AUS") {
+            manualPumpOverride = true;
+            manualPumpState = false;
+            digitalWrite(RELAY_PIN, HIGH);  // HIGH = Pumpe AUS
+            Serial.println("Manuell → Pumpe AUS");
+        } else if (msg == "AUTO") {
+            manualPumpOverride = false;
+            Serial.println("Automatikmodus aktiviert");
+        }
+    }
+}
+
+// --------------------------------------------------------------------
+void setup_wifi() {
+    Serial.print("Verbinde mit WLAN ");
+    Serial.println(ssid);
+    WiFi.begin(ssid, password);
+
+    while (WiFi.status() != WL_CONNECTED) {
+        delay(500);
+        Serial.print(".");
+    }
+
+    Serial.println();
+    Serial.println("WiFi verbunden!");
+    Serial.print("IP-Adresse: ");
+    Serial.println(WiFi.localIP());
+}
+
+// --------------------------------------------------------------------
+void reconnect() {
+    while (!client.connected()) {
+        Serial.print("Versuche MQTT-Verbindung...");
+        String clientId = "ESP32-Pflanzenbox-";
+        clientId += String(random(0xffff), HEX);
+
+        if (client.connect(clientId.c_str(), mqtt_user, mqtt_password)) {
+            Serial.println("verbunden!");
+            client.subscribe(mqtt_topic_pump);
+        } else {
+            Serial.print("Fehler rc=");
+            Serial.print(client.state());
+            Serial.println(" → Neuer Versuch in 5 Sekunden");
+            delay(5000);
+        }
+    }
+}
+
+// --------------------------------------------------------------------
+void setup() {
+    Serial.begin(115200);
+
+    dht.begin();
+
+    pinMode(RELAY_PIN, OUTPUT);
+    digitalWrite(RELAY_PIN, HIGH); // Start: Pumpe AUS
+
+    setup_wifi();
+
+    client.setServer(mqtt_server, 1883);
+    client.setCallback(callback);
+}
+
+// --------------------------------------------------------------------
+void loop() {
+    if (!client.connected()) {
+        reconnect();
+    }
+    client.loop();
+
+    long now = millis();
+    if (now - lastMsg > 5000) { // Sensoren alle 5 Sekunden senden
+        lastMsg = now;
+
+        // Sensorwerte auslesen
+        float temp = dht.readTemperature();
+        float hum = dht.readHumidity();
+        int soilValue = analogRead(MOISTURE_PIN);
+        float soilPercent = soilValue / 4095.0 * 100.0;
+
+        if (isnan(temp) || isnan(hum)) {
+            Serial.println("DHT-Fehler → keine Daten gesendet.");
+        } else {
+            // JSON erstellen
+            StaticJsonDocument<200> doc;
+            doc["Temperatur"] = temp;
+            doc["Luftfeuchtigkeit"] = hum;
+            doc["Bodenfeuchtigkeit"] = soilPercent;
+
+            char jsonBuffer[200];
+            serializeJson(doc, jsonBuffer);
+
+            client.publish(mqtt_topic_out, jsonBuffer);
+            Serial.print("Sensorwerte gesendet: ");
+            Serial.println(jsonBuffer);
+        }
+
+        // ----------------------------------------------------------------
+        // Pumpensteuerung
+        // ----------------------------------------------------------------
+        if (!manualPumpOverride) {
+            // Automatikmodus
+            if (soilPercent < 30.0) {
+                digitalWrite(RELAY_PIN, LOW);  // Pumpe EIN
+                Serial.println("Automatik → Boden zu trocken → Pumpe EIN");
+            } else {
+                digitalWrite(RELAY_PIN, HIGH); // Pumpe AUS
+                Serial.println("Automatik → Boden OK → Pumpe AUS");
+            }
+        } else {
+            // Manuelle Steuerung
+            if (manualPumpState) {
+                digitalWrite(RELAY_PIN, LOW);
+            } else {
+                digitalWrite(RELAY_PIN, HIGH);
+            }
+        }
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
 V10, Pumpe geht manuell an und aus schalten
  
 #include <WiFi.h>
@@ -575,6 +761,7 @@ void loop() {
 
   delay(2000);
 }
+
 
 
 
