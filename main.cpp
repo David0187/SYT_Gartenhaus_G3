@@ -1,10 +1,12 @@
 
-TAG DER OFFENEN TÜR CODE, BITTE DAS IN DIE MAIN EINFÜGEN UND DIE PLATFORM IO AUCH IN DIE PLATFORM IO DATEI REIN FÜGEN.
+//TAG DER OFFENEN TÜR CODE, BITTE DAS IN DIE MAIN EINFÜGEN UND DIE PLATFORM IO AUCH IN DIE PLATFORM IO DATEI REIN FÜGEN.
 
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
 #include <DHT.h>
+#include <U8g2lib.h> 
+#include <Wire.h>
 
 // --------------------------------------------------------------------
 // WLAN
