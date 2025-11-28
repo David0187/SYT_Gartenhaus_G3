@@ -15,3 +15,5 @@ sudo docker ps -a
 sudo docker start homeassistant
 
 sudo docker start mosquitto
+
+ip: 172.16.93.132 
